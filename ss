@@ -1,4 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/env python3
+# 在/storage/emulated/0/Download/wms中搜索关键词并显示货位，也就是从关键词开始，往前搜索到的第一个冒号所在行。
+# 用法 python ss keyword
+# 支持分支条件，例: python ss "keyword1|keyword2"
+
 import sys
 import re
 import subprocess
