@@ -1,0 +1,1 @@
+git log $2 -w -p -S "$1" -- wms.txt | grep '^\(+\|-\)' | grep --color=auto "$1"
