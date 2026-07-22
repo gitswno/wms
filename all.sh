@@ -4,7 +4,7 @@
 REPO_DIR="/sdcard/Download/wms"
 
 # 定义输出文件
-OUTPUT_FILE="all_wms"
+OUTPUT_FILE="all_wms最近一个月内每天出入库查询"
 
 # 获取30天前的 Unix 时间戳
 # 兼容 Linux/Termux 和 macOS
@@ -30,7 +30,7 @@ for i in $(git -C "$REPO_DIR" rev-list HEAD); do
     found=1
     echo "版本ID: $i" >> "$OUTPUT_FILE"
     echo "时间: $(git -C "$REPO_DIR" show -s --format=%ad --date=format:'%Y-%m-%d %H:%M:%S' "$i")" >> "$OUTPUT_FILE"
-    git -C "$REPO_DIR" show "$i":wms | sed 's/绿色天堂/和谐和谐/g; s/白粉/和谐/g' >> "$OUTPUT_FILE"
+    git -C "$REPO_DIR" show "$i":wms仓库库存查询 | sed 's/绿色天堂/和谐和谐/g; s/白粉/和谐/g' >> "$OUTPUT_FILE"
     echo >> "$OUTPUT_FILE"
     echo >> "$OUTPUT_FILE"
   else
