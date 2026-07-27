@@ -30,7 +30,7 @@ for i in $(git -C "$REPO_DIR" rev-list HEAD); do
     found=1
     echo "版本ID: $i" >> "$OUTPUT_FILE"
     echo "时间: $(git -C "$REPO_DIR" show -s --format=%ad --date=format:'%Y-%m-%d %H:%M:%S' "$i")" >> "$OUTPUT_FILE"
-    git -C "$REPO_DIR" show "$i":wms仓库库存查询 | sed 's/绿色天堂/和谐和谐/g; s/白粉/和谐/g' >> "$OUTPUT_FILE"
+    git -C "$REPO_DIR" show "$i":wmsd东院仓库库存查询 | sed 's/绿色天堂/和谐和谐/g; s/白粉/和谐/g' >> "$OUTPUT_FILE"
     echo >> "$OUTPUT_FILE"
     echo >> "$OUTPUT_FILE"
   else
