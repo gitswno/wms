@@ -3,8 +3,8 @@
 # 定义 Git 仓库绝对路径
 REPO_DIR="/sdcard/Download/wms"
 
-# 定义输出文件
-OUTPUT_FILE="all_wms最近一个月内每天出入库查询"
+# 定义输出文件的完整绝对路径 (修改了这里)
+OUTPUT_FILE="/storage/emulated/0/Download/wms/all_wms最近一个月内每天出入库查询"
 
 # 获取30天前的 Unix 时间戳
 # 兼容 Linux/Termux 和 macOS
@@ -17,7 +17,7 @@ fi
 
 echo "正在提取最近30天 (作者时间) 的提交..."
 
-> "$OUTPUT_FILE"  # 清空或创建文件
+> "$OUTPUT_FILE"  # 清空或创建文件（统一使用变量）
 found=0
 
 # 遍历所有提交
@@ -28,6 +28,7 @@ for i in $(git -C "$REPO_DIR" rev-list HEAD); do
   # 比较时间戳：如果当前提交的作者时间 >= 30天前的时间，则处理
   if [ "$commit_timestamp" -ge "$PAST_TIMESTAMP" ]; then
     found=1
+    # 统一使用 $OUTPUT_FILE 变量进行追加
     echo "版本ID: $i" >> "$OUTPUT_FILE"
     echo "时间: $(git -C "$REPO_DIR" show -s --format=%ad --date=format:'%Y-%m-%d %H:%M:%S' "$i")" >> "$OUTPUT_FILE"
     git -C "$REPO_DIR" show "$i":wmsd东院仓库库存查询 | sed 's/绿色天堂/和谐和谐/g; s/白粉/和谐/g' >> "$OUTPUT_FILE"
@@ -41,7 +42,7 @@ for i in $(git -C "$REPO_DIR" rev-list HEAD); do
 done
 
 if [ $found -eq 1 ]; then
-  echo "处理完成，结果已保存到 $(pwd)/$OUTPUT_FILE"
+  echo "处理完成，结果已保存到 $OUTPUT_FILE"
 else
   echo "最近30天内没有新的提交，无需提取历史。"
 fi
