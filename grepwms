@@ -1,1 +1,8 @@
-git log $2 -w -p -S "$1" -- wms.txt | grep '^\(+\|-\)' | grep --color=auto "$1"
+for i in wmsd东院仓库库存查询 wmsx西院仓库库存查询 wuvo西院无着入库; do
+	echo
+	echo -e "\e[31m============>\e[0m\e[32m${i}\e[0m\e[31m<===========\e[0m"
+	git log $2 -w -p -S "$1" -- "$i" | grep '^+' | grep --color=auto "$1"
+	echo
+	echo
+done
+
