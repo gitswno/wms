@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+import sys
+import re
+import tempfile
+import os
+from datetime import date
+
+def print_help():
+    help_text = r"""
+用法：
+  【追加标记模式】
+  python3 script.py [--dry-run] [-L start,end] [-l start[,end]] [前缀] 输入文件
+
+  参数说明：
+    --dry-run          试运行，不修改文件，输出结果到终端
+    -L start,end       行号范围；支持 $ 代表文件末尾，例：-L 5,$ 、-L 2,100
+    -l start[,end]     标记流水号区间；例：-l 100, 从100开始无上限；-l 100,500 限定100‑500
+    前缀                标记前缀，不传默认 1
+    输入文件            待处理文本文件
+
+  【删除标记模式 --delete】
+  python3 script.py --delete [--dry-run] 源文件 标记列表文件
+
+  参数说明：
+    --delete           进入删除模式，读取标记列表，删除行尾匹配该标记的整行
+    --dry-run          删除模式同样支持试运行，不改动源文件
+    源文件             需要删除行的原始文件
+    标记列表文件       每行一个标记，示例内容：
+                       1-2026-08-16-000001
+                       1-2026-08-16-000002
+
+示例：
+  # 追加：第5行到末尾，自动接续6位流水号，试运行
+  python3 script.py --dry-run -L 5,$ 1 test.txt
+
+  # 追加：限定流水号区间从100到200
+  python3 script.py --dry-run -L 5,$ -l 100,200 1 test.txt
+
+  # 删除：试运行删除标记列表匹配的行
+  python3 script.py --delete --dry-run test.txt tags.txt
+
+  # 删除：真实执行删除
+  python3 script.py --delete test.txt tags.txt
+
+标记格式示例：前缀‑日期‑6位流水号  → 1-2026-08-16-000001
+"""
+    print(help_text)
+
+def main():
+    args = sys.argv[1:]
+    line_start = None
+    line_end = None
+    seq_start = None
+    seq_end = None
+    prefix = "1"
+    infile = None
+    dry_run = False
+    delete_mode = False
+    tag_file = None
+
+    if "-h" in args or "--help" in args:
+        print_help()
+        sys.exit(0)
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--help" or arg == "-h":
+            print_help()
+            sys.exit(0)
+        elif arg == "--dry-run":
+            dry_run = True
+            i += 1
+        elif arg == "--delete":
+            delete_mode = True
+            i += 1
+        elif arg == "-L":
+            if i+1 >= len(args):
+                print("错误：-L 需要参数，格式 -L start,end，例 -L 5,$", file=sys.stderr)
+                sys.exit(1)
+            val = args[i+1]
+            i += 2
+            sp = val.split(",")
+            if len(sp) != 2:
+                print("错误：-L 格式应为 -L start,end，例 -L 5,$", file=sys.stderr)
+                sys.exit(1)
+            s_str, e_str = sp[0].strip(), sp[1].strip()
+            try:
+                line_start = int(s_str)
+            except ValueError:
+                print(f"错误：-L 起始行必须为数字，收到 {s_str}", file=sys.stderr)
+                sys.exit(1)
+            if e_str == "$":
+                line_end = None
+            else:
+                try:
+                    line_end = int(e_str)
+                except ValueError:
+                    print(f"错误：-L 结束行只能是数字或$，收到 {e_str}", file=sys.stderr)
+                    sys.exit(1)
+        elif arg == "-l":
+            if i+1 >= len(args):
+                print("错误：-l 需要参数，格式 -l start[,end]，例 -l 100 或 -l 100,200", file=sys.stderr)
+                sys.exit(1)
+            val = args[i+1]
+            i += 2
+            parts = val.split(",")
+            try:
+                seq_start = int(parts[0].strip())
+                if seq_start < 1:
+                    print("错误：-l 起始序号必须 >=1", file=sys.stderr)
+                    sys.exit(1)
+            except ValueError:
+                print(f"错误：-l 起始必须数字，收到 {parts[0]}", file=sys.stderr)
+                sys.exit(1)
+            if len(parts) >=2 and parts[1].strip() != "":
+                try:
+                    seq_end = int(parts[1].strip())
+                    if seq_end < seq_start:
+                        print("错误：-l 结束序号不能小于起始序号", file=sys.stderr)
+                        sys.exit(1)
+                except ValueError:
+                    print(f"错误：-l 结束必须数字，收到 {parts[1]}", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                seq_end = None
+        else:
+            if delete_mode:
+                if infile is None:
+                    infile = arg
+                elif tag_file is None:
+                    tag_file = arg
+                i +=1
+            else:
+                if infile is None:
+                    try:
+                        int(arg)
+                        prefix = arg
+                        if i+1 < len(args):
+                            infile = args[i+1]
+                            i += 1
+                        else:
+                            print_help()
+                            sys.exit(1)
+                    except ValueError:
+                        infile = arg
+                i += 1
+
+    # ---------- 删除模式 ----------
+    if delete_mode:
+        if infile is None or tag_file is None:
+            print("参数缺失！--delete模式需要：源文件 标记列表文件", file=sys.stderr)
+            print_help()
+            sys.exit(1)
+        delete_tags = set()
+        with open(tag_file, "r", encoding="utf-8") as ftag:
+            for line in ftag:
+                t = line.strip()
+                if t:
+                    delete_tags.add(t)
+        if not delete_tags:
+            print("警告：标记文件为空，没有要删除的行", file=sys.stderr)
+            sys.exit(0)
+
+        output_lines = []
+        deleted_count = 0
+        tag_re_list = [re.compile(rf"\s{re.escape(tag)}$") for tag in delete_tags]
+
+        with open(infile, "r", encoding="utf-8") as fin:
+            for raw_line in fin:
+                content_no_nl = raw_line.rstrip("\n")
+                matched = False
+                for pat in tag_re_list:
+                    if pat.search(content_no_nl):
+                        matched = True
+                        break
+                if matched:
+                    deleted_count +=1
+                    continue
+                output_lines.append(raw_line)
+
+        if dry_run:
+            print(f"===== DELETE DRY‑RUN，预计删除行数：{deleted_count} =====")
+            sys.stdout.writelines(output_lines)
+        else:
+            dir_name = os.path.dirname(os.path.abspath(infile))
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=dir_name, delete=False) as fout:
+                tmp_path = fout.name
+                fout.writelines(output_lines)
+            os.replace(tmp_path, infile)
+            print(f"--delete完成，共删除 {deleted_count} 行")
+        return
+
+    # ---------- 追加标记模式 ----------
+    if infile is None:
+        print("缺少输入文件参数", file=sys.stderr)
+        print_help()
+        sys.exit(1)
+
+    today = date.today().strftime("%Y-%m-%d")
+    scan_mark_re = re.compile(rf"\s{re.escape(prefix)}-{re.escape(today)}-(\d{{6}})$")
+    mark_pattern = re.compile(rf"\s{re.escape(prefix)}-\d{{4}}-\d{{2}}-\d{{2}}-\d{{6}}$")
+
+    max_exist_seq = 0
+    with open(infile, "r", encoding="utf-8") as fin:
+        for raw_line in fin:
+            m = scan_mark_re.search(raw_line.rstrip("\n"))
+            if m:
+                num = int(m.group(1))
+                if num > max_exist_seq:
+                    max_exist_seq = num
+
+    if seq_start is not None:
+        counter = seq_start
+        msg = f"使用手动序号起始：{counter:06d}"
+        if seq_end is not None:
+            msg += f"，序号上限：{seq_end:06d}"
+        print(msg)
+    else:
+        counter = max_exist_seq + 1
+        print(f"探测到已有最大序号 {max_exist_seq:06d}，本次从 {counter:06d} 继续")
+
+    output_lines = []
+    add_count = 0
+    with open(infile, "r", encoding="utf-8") as fin:
+        for line_num, raw_line in enumerate(fin, start=1):
+            line_stripped_nl = raw_line.rstrip("\n")
+            stripped = line_stripped_nl.strip(" \t")
+
+            in_range = True
+            if line_start is not None:
+                if line_end is None:
+                    in_range = (line_num >= line_start)
+                else:
+                    in_range = (line_start <= line_num <= line_end)
+            if not in_range:
+                output_lines.append(raw_line)
+                continue
+
+            if not stripped:
+                output_lines.append(raw_line)
+                continue
+            if ":" in line_stripped_nl or "：" in line_stripped_nl:
+                output_lines.append(raw_line)
+                continue
+            if mark_pattern.search(line_stripped_nl):
+                output_lines.append(raw_line)
+                continue
+
+            if seq_end is not None and counter > seq_end:
+                output_lines.append(raw_line)
+                continue
+
+            suffix = f"{prefix}-{today}-{counter:06d}"
+            new_line = f"{line_stripped_nl} {suffix}\n"
+            output_lines.append(new_line)
+            counter += 1
+            add_count += 1
+
+    if dry_run:
+        print(f"===== DRY‑RUN，预计新增标记数量：{add_count} =====")
+        sys.stdout.writelines(output_lines)
+    else:
+        dir_name = os.path.dirname(os.path.abspath(infile))
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=dir_name, delete=False) as fout:
+            tmp_path = fout.name
+            fout.writelines(output_lines)
+        os.replace(tmp_path, infile)
+        print(f"处理完成，共添加 {add_count} 条标记。下一次自动接续起始：{counter:06d}")
+
+
+if __name__ == "__main__":
+    main()
