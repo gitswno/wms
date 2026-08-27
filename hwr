@@ -22,7 +22,7 @@ def main():
     file_paths = [
         "/storage/emulated/0/Download/wms/wmsd东院仓库库存查询",
         "/storage/emulated/0/Download/wms/wmsx西院仓库库存查询",
-        "/storage/emulated/0/Download/wms/wuvo西院无着入库",
+        "/storage/emulated/0/Download/wms/wuvox西院无着入库",
         "/storage/emulated/0/Download/wms/tmp",
         # 添加更多文件路径...
     ]
